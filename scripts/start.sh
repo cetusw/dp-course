@@ -66,7 +66,8 @@ wait_for_http() {
             echo "Valuator на порту $port завершился. См. $runtime/valuator-$port.log." >&2
             return 1
         fi
-        if curl --noproxy '*' --fail --silent --max-time 1 "http://127.0.0.1:$port/" > /dev/null; then
+        if grep -q 'Подписчик RankCalculated готов' "$runtime/valuator-$port.log" &&
+            curl --noproxy '*' --fail --silent --max-time 1 "http://127.0.0.1:$port/" > /dev/null; then
             return 0
         fi
         sleep 0.2

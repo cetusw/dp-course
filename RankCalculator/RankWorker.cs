@@ -121,6 +121,9 @@ public sealed class RankWorker : BackgroundService
             _logger.LogWarning("Отклонено задание {TextId}: текст отсутствует или пуст", id);
             return false;
         }
+        int delaySeconds = Random.Shared.Next(3, 16);
+        _logger.LogInformation("Задание {TextId}: задержка {DelaySeconds} секунд", id, delaySeconds);
+        await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
         double rank = CalculateRank(text.ToString());
         await database.StringSetAsync($"RANK-{id}", rank.ToString(CultureInfo.InvariantCulture));
         await PublishRankEventAsync(connection, id, rank, cancellationToken);

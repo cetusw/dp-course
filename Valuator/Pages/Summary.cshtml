@@ -8,6 +8,16 @@
 }
 else
 {
-    <p>Оценка содержания не завершена</p>
+    <p id="rank" data-text-id="@Model.TextId">Оценка содержания не завершена</p>
+    <p id="rank-status" role="status"></p>
 }
 <p>Плагиат: @Model.Similarity</p>
+
+@section Scripts
+{
+    @if (!Model.Rank.HasValue)
+    {
+        <script src="~/lib/signalr/signalr.min.js" asp-append-version="true"></script>
+        <script src="~/js/summary.js" asp-append-version="true"></script>
+    }
+}

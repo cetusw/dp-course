@@ -10,6 +10,8 @@ public class Program
 
         // Add services to the container.
         builder.Services.AddRazorPages();
+        builder.Services.AddSignalR();
+        builder.Services.AddHostedService<RankEventsForwarder>();
         builder.Services.AddSingleton<IConnectionMultiplexer>(services =>
             ConnectionMultiplexer.Connect(
                 services.GetRequiredService<IConfiguration>().GetConnectionString("Redis") ?? "localhost:6379"));
@@ -31,6 +33,7 @@ public class Program
         app.UseAuthorization();
 
         app.MapRazorPages();
+        app.MapHub<RankHub>("/hubs/rank");
 
         await app.RunAsync();
     }

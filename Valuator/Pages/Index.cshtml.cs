@@ -1,37 +1,63 @@
+using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using StackExchange.Redis;
 
 namespace Valuator.Pages;
 
 public class IndexModel : PageModel
 {
-    private readonly ILogger<IndexModel> _logger;
+    private readonly IDatabase _database;
 
-    public IndexModel(ILogger<IndexModel> logger)
+    public IndexModel(IConnectionMultiplexer connection)
     {
-        _logger = logger;
+        _database = connection.GetDatabase();
     }
 
-    public void OnGet()
-    {
+    [BindProperty]
+    [DisplayFormat(ConvertEmptyStringToNull = false)]
+    public string? Text { get; set; }
 
+    public async Task<IActionResult> OnPostAsync()
+    {
+        if (string.IsNullOrEmpty(Text))
+        {
+            return BadRequest("Введите непустой текст.");
+        }
+
+        var id = Guid.NewGuid().ToString();
+        await _database.StringSetAsync($"TEXT-{id}", Text);
+
+        double rank = CalculateRank(Text);
+        await _database.StringSetAsync($"RANK-{id}", rank.ToString(CultureInfo.InvariantCulture));
+
+        bool isNewText = await _database.SetAddAsync("PROCESSED-TEXTS", Text);
+        double similarity = isNewText ? 0 : 1;
+        await _database.StringSetAsync($"SIMILARITY-{id}", similarity.ToString(CultureInfo.InvariantCulture));
+
+        return RedirectToPage("/Summary", new { id });
     }
 
-    public IActionResult OnPost(string text)
+    private static double CalculateRank(string text)
     {
-        _logger.LogDebug(text);
+        int totalCount = 0;
+        int nonAlphabeticCount = 0;
+        foreach (var rune in text.EnumerateRunes())
+        {
+            totalCount++;
+            if (!IsAlphabetic(rune.Value))
+            {
+                nonAlphabeticCount++;
+            }
+        }
 
-        string id = Guid.NewGuid().ToString();
+        return (double)nonAlphabeticCount / totalCount;
+    }
 
-        string textKey = "TEXT-" + id;
-        // TODO: (pa1) сохранить в БД (Redis) text по ключу textKey
-
-        string rankKey = "RANK-" + id;
-        // TODO: (pa1) посчитать rank и сохранить в БД (Redis) по ключу rankKey
-
-        string similarityKey = "SIMILARITY-" + id;
-        // TODO: (pa1) посчитать similarity и сохранить в БД (Redis) по ключу similarityKey
-
-        return Redirect($"summary?id={id}");
+    private static bool IsAlphabetic(int symbol)
+    {
+        return symbol is >= 'a' and <= 'z' or >= 'A' and <= 'Z'
+            or >= 'а' and <= 'я' or >= 'А' and <= 'Я' or 'ё' or 'Ё';
     }
 }

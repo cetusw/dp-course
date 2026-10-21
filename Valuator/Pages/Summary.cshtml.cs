@@ -1,28 +1,38 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.Extensions.Logging;
+using StackExchange.Redis;
 
 namespace Valuator.Pages;
+
 public class SummaryModel : PageModel
 {
-    private readonly ILogger<SummaryModel> _logger;
+    private readonly IDatabase _database;
 
-    public SummaryModel(ILogger<SummaryModel> logger)
+    public SummaryModel(IConnectionMultiplexer connection)
     {
-        _logger = logger;
+        _database = connection.GetDatabase();
     }
 
-    public double Rank { get; set; }
-    public double Similarity { get; set; }
+    public double Rank { get; private set; }
+    public double Similarity { get; private set; }
 
-    public void OnGet(string id)
+    public async Task<IActionResult> OnGetAsync(string? id)
     {
-        _logger.LogDebug(id);
+        if (!Guid.TryParse(id, out _))
+        {
+            return BadRequest();
+        }
 
-        // TODO: (pa1) проинициализировать свойства Rank и Similarity значениями из БД (Redis)
+        RedisValue rank = await _database.StringGetAsync($"RANK-{id}");
+        RedisValue similarity = await _database.StringGetAsync($"SIMILARITY-{id}");
+        if (rank.IsNull || similarity.IsNull)
+        {
+            return NotFound();
+        }
+
+        Rank = double.Parse(rank.ToString(), CultureInfo.InvariantCulture);
+        Similarity = double.Parse(similarity.ToString(), CultureInfo.InvariantCulture);
+        return Page();
     }
 }

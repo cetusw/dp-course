@@ -29,7 +29,7 @@ done
 mkdir -p -- "$runtime"
 dotnet build "$root/ds-2024.sln" -c Release
 if ! (cd -- "$root/RankCalculator" && dotnet "$rank_application" --check-dependencies); then
-    echo "Не удалось подключиться к Redis или RabbitMQ. Проверьте зависимости и ConnectionStrings." >&2
+    echo "Не удалось подключиться к Redis или RabbitMQ. Проверьте DB_MAIN, DB_RU, DB_EU, DB_ASIA и RabbitMQ." >&2
     exit 1
 fi
 

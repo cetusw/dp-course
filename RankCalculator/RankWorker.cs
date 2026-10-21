@@ -17,21 +17,21 @@ public sealed class RankWorker : BackgroundService
     private const string EventsExchange = "valuator.events";
     private readonly IConfiguration _configuration;
     private readonly ILogger<RankWorker> _logger;
+    private readonly ShardedRedis _redis;
 
-    public RankWorker(IConfiguration configuration, ILogger<RankWorker> logger)
+    public RankWorker(IConfiguration configuration, ILogger<RankWorker> logger, ShardedRedis redis)
     {
         _configuration = configuration;
         _logger = logger;
+        _redis = redis;
     }
 
-    public static async Task CheckDependenciesAsync(IConfiguration configuration)
+    public static async Task CheckDependenciesAsync(ShardedRedis redis, IConfiguration configuration)
     {
-        using var redis = await ConnectionMultiplexer.ConnectAsync(
-            configuration.GetConnectionString("Redis") ?? "localhost:6379");
-        await redis.GetDatabase().PingAsync();
+        await redis.PingAsync();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await using var connection = await CreateFactory(configuration).CreateConnectionAsync(timeout.Token);
-        Console.WriteLine("Redis и RabbitMQ доступны.");
+        Console.WriteLine("DB_MAIN, DB_RU, DB_EU, DB_ASIA и RabbitMQ доступны.");
     }
 
     private static ConnectionFactory CreateFactory(IConfiguration configuration)
@@ -47,15 +47,13 @@ public sealed class RankWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var redis = await ConnectionMultiplexer.ConnectAsync(
-            _configuration.GetConnectionString("Redis") ?? "localhost:6379");
         await using var connection = await CreateFactory(_configuration).CreateConnectionAsync(stoppingToken);
         await using var channel = await connection.CreateChannelAsync(cancellationToken: stoppingToken);
         await DeclareTopologyAsync(channel, stoppingToken);
         await channel.BasicQosAsync(0, 1, false, stoppingToken);
         var consumer = new AsyncEventingBasicConsumer(channel);
         consumer.ReceivedAsync += (_, message) =>
-            HandleAsync(channel, connection, redis.GetDatabase(), message, stoppingToken);
+            HandleAsync(channel, connection, message, stoppingToken);
         string consumerTag = await channel.BasicConsumeAsync(QueueName, false, consumer, stoppingToken);
         _logger.LogInformation("Потребитель очереди {Queue} готов", QueueName);
         try
@@ -79,13 +77,13 @@ public sealed class RankWorker : BackgroundService
             cancellationToken: cancellationToken);
     }
 
-    private async Task HandleAsync(IChannel channel, IConnection connection, IDatabase database,
-        BasicDeliverEventArgs message, CancellationToken cancellationToken)
+    private async Task HandleAsync(IChannel channel, IConnection connection, BasicDeliverEventArgs message,
+        CancellationToken cancellationToken)
     {
         string id = Encoding.UTF8.GetString(message.Body.Span);
         try
         {
-            if (await CalculateAndSaveAsync(connection, database, id, cancellationToken))
+            if (await CalculateAndSaveAsync(connection, id, cancellationToken))
             {
                 await channel.BasicAckAsync(message.DeliveryTag, false, cancellationToken);
             }
@@ -93,6 +91,11 @@ public sealed class RankWorker : BackgroundService
             {
                 await channel.BasicRejectAsync(message.DeliveryTag, false, cancellationToken);
             }
+        }
+        catch (InvalidDataException exception)
+        {
+            _logger.LogWarning(exception, "Отклонено задание {TextId}: недопустимый сегмент", id);
+            await channel.BasicRejectAsync(message.DeliveryTag, false, cancellationToken);
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested &&
             exception is RedisConnectionException or TimeoutException or RabbitMQClientException
@@ -107,12 +110,19 @@ public sealed class RankWorker : BackgroundService
         }
     }
 
-    private async Task<bool> CalculateAndSaveAsync(IConnection connection, IDatabase database, string id,
+    private async Task<bool> CalculateAndSaveAsync(IConnection connection, string id,
         CancellationToken cancellationToken)
     {
-        if (!Guid.TryParse(id, out _))
+        if (!Guid.TryParse(id, out var textId))
         {
             _logger.LogWarning("Отклонено задание с некорректным ID {TextId}", id);
+            return false;
+        }
+        id = textId.ToString();
+        IDatabase? database = await _redis.GetDatabaseByTextIdAsync(id);
+        if (database is null)
+        {
+            _logger.LogWarning("Отклонено задание {TextId}: сегмент не найден", id);
             return false;
         }
         RedisValue text = await database.StringGetAsync($"TEXT-{id}");

@@ -2,24 +2,26 @@ using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using StackExchange.Redis;
 
 namespace Valuator.Pages;
 
 public class IndexModel : PageModel
 {
-    private readonly IDatabase _database;
+    private readonly ShardedRedis _redis;
     private readonly MessagePublisher _messagePublisher;
 
-    public IndexModel(IConnectionMultiplexer connection, MessagePublisher messagePublisher)
+    public IndexModel(ShardedRedis redis, MessagePublisher messagePublisher)
     {
-        _database = connection.GetDatabase();
+        _redis = redis;
         _messagePublisher = messagePublisher;
     }
 
     [BindProperty]
     [DisplayFormat(ConvertEmptyStringToNull = false)]
     public string? Text { get; set; }
+
+    [BindProperty]
+    public string? Country { get; set; }
 
     public async Task<IActionResult> OnPostAsync()
     {
@@ -28,16 +30,35 @@ public class IndexModel : PageModel
             return BadRequest("Введите непустой текст.");
         }
 
-        var id = Guid.NewGuid().ToString();
-        await _database.StringSetAsync($"TEXT-{id}", Text);
+        string? region = GetRegionByCountry(Country);
+        if (region is null)
+        {
+            return BadRequest("Выберите страну из списка.");
+        }
 
-        bool isNewText = await _database.SetAddAsync("PROCESSED-TEXTS", Text);
-        double similarity = isNewText ? 0 : 1;
-        await _database.StringSetAsync($"SIMILARITY-{id}", similarity.ToString(CultureInfo.InvariantCulture));
+        var id = Guid.NewGuid().ToString();
+        var database = _redis.GetDatabase(region);
+        await database.StringSetAsync($"TEXT-{id}", Text);
+        await database.StringSetAsync($"COUNTRY-{id}", Country);
+
+        double similarity = await _redis.CalculateSimilarityAsync(Text, region);
+        await database.StringSetAsync($"SIMILARITY-{id}", similarity.ToString(CultureInfo.InvariantCulture));
+        await _redis.SaveShardAsync(id, region);
 
         await _messagePublisher.PublishSimilarityAsync(id, similarity, HttpContext.RequestAborted);
         await _messagePublisher.PublishRankAsync(id, HttpContext.RequestAborted);
 
         return RedirectToPage("/Summary", new { id });
+    }
+
+    private static string? GetRegionByCountry(string? country)
+    {
+        return country switch
+        {
+            "Russia" => "RU",
+            "France" or "Germany" => "EU",
+            "UAE" or "India" => "ASIA",
+            _ => null
+        };
     }
 }

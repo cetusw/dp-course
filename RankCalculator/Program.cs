@@ -8,13 +8,16 @@ public class Program
     public static async Task Main(string[] args)
     {
         var builder = Host.CreateApplicationBuilder();
-        if (args.Contains("--check-dependencies"))
-        {
-            await RankWorker.CheckDependenciesAsync(builder.Configuration);
-            return;
-        }
+        builder.Services.AddSingleton<ShardedRedis>();
         builder.Services.AddHostedService<RankWorker>();
         using var host = builder.Build();
+        var redis = host.Services.GetRequiredService<ShardedRedis>();
+        await redis.ConnectAsync();
+        if (args.Contains("--check-dependencies"))
+        {
+            await RankWorker.CheckDependenciesAsync(redis, builder.Configuration);
+            return;
+        }
         await host.RunAsync();
     }
 }

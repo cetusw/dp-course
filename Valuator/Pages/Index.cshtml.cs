@@ -9,12 +9,12 @@ namespace Valuator.Pages;
 public class IndexModel : PageModel
 {
     private readonly IDatabase _database;
-    private readonly RankPublisher _rankPublisher;
+    private readonly MessagePublisher _messagePublisher;
 
-    public IndexModel(IConnectionMultiplexer connection, RankPublisher rankPublisher)
+    public IndexModel(IConnectionMultiplexer connection, MessagePublisher messagePublisher)
     {
         _database = connection.GetDatabase();
-        _rankPublisher = rankPublisher;
+        _messagePublisher = messagePublisher;
     }
 
     [BindProperty]
@@ -35,7 +35,8 @@ public class IndexModel : PageModel
         double similarity = isNewText ? 0 : 1;
         await _database.StringSetAsync($"SIMILARITY-{id}", similarity.ToString(CultureInfo.InvariantCulture));
 
-        await _rankPublisher.PublishAsync(id, HttpContext.RequestAborted);
+        await _messagePublisher.PublishSimilarityAsync(id, similarity, HttpContext.RequestAborted);
+        await _messagePublisher.PublishRankAsync(id, HttpContext.RequestAborted);
 
         return RedirectToPage("/Summary", new { id });
     }

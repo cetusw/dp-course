@@ -6,6 +6,7 @@ runtime="$root/.runtime"
 config="$root/nginx/conf/nginx.conf"
 application="$root/Valuator/bin/Release/net8.0/Valuator.dll"
 rank_application="$root/RankCalculator/bin/Release/net8.0/RankCalculator.dll"
+events_application="$root/EventsLogger/bin/Release/net8.0/EventsLogger.dll"
 
 is_valuator() {
     local pid=$1 port=$2
@@ -22,6 +23,14 @@ is_rank_calculator() {
     [[ "$pid" =~ ^[1-9][0-9]*$ && -r "/proc/$pid/cmdline" ]] || return 1
     mapfile -d '' -t arguments < "/proc/$pid/cmdline"
     [[ ${#arguments[@]} -eq 2 && "${arguments[1]}" == "$rank_application" ]]
+}
+
+is_events_logger() {
+    local pid=$1
+    local -a arguments=()
+    [[ "$pid" =~ ^[1-9][0-9]*$ && -r "/proc/$pid/cmdline" ]] || return 1
+    mapfile -d '' -t arguments < "/proc/$pid/cmdline"
+    [[ ${#arguments[@]} -eq 2 && "${arguments[1]}" == "$events_application" ]]
 }
 
 is_nginx() {
@@ -67,6 +76,18 @@ stop_rank_calculator() {
     rm -f -- "$pid_file"
 }
 
+stop_events_logger() {
+    local instance=$1 pid
+    local pid_file="$runtime/events-logger-$instance.pid"
+    [[ -f "$pid_file" ]] || return 0
+    pid=$(cat -- "$pid_file")
+    if is_events_logger "$pid"; then
+        kill -TERM "$pid" || return 1
+        wait_for_exit events_logger "$pid" || return 1
+    fi
+    rm -f -- "$pid_file"
+}
+
 stop_nginx() {
     local pid
     [[ -f "$runtime/nginx.pid" ]] || return 0
@@ -85,6 +106,8 @@ stop_all() {
     stop_valuator 5002 || status=1
     stop_rank_calculator 1 || status=1
     stop_rank_calculator 2 || status=1
+    stop_events_logger 1 || status=1
+    stop_events_logger 2 || status=1
     return "$status"
 }
 

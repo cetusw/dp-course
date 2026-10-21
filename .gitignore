@@ -1,3 +1,5 @@
 .runtime/
 RankCalculator/bin/
 RankCalculator/obj/
+EventsLogger/bin/
+EventsLogger/obj/

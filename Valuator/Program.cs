@@ -14,8 +14,8 @@ public class Program
             ConnectionMultiplexer.Connect(
                 services.GetRequiredService<IConfiguration>().GetConnectionString("Redis") ?? "localhost:6379"));
 
-        await using var rankPublisher = await RankPublisher.CreateAsync(builder.Configuration);
-        builder.Services.AddSingleton(rankPublisher);
+        await using var messagePublisher = await MessagePublisher.CreateAsync(builder.Configuration);
+        builder.Services.AddSingleton(messagePublisher);
 
         var app = builder.Build();
 

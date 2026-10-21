@@ -3,7 +3,7 @@ set -euo pipefail
 
 source "$(dirname -- "${BASH_SOURCE[0]}")/stop.sh"
 
-for command in dotnet nginx curl; do
+for command in dotnet nginx curl grep; do
     if ! command -v "$command" > /dev/null; then
         echo "Не найдена необходимая команда: $command" >&2
         exit 1
@@ -11,7 +11,8 @@ for command in dotnet nginx curl; do
 done
 
 for pid_file in "$runtime/nginx.pid" "$runtime/valuator-5001.pid" "$runtime/valuator-5002.pid" \
-    "$runtime/rank-calculator-1.pid" "$runtime/rank-calculator-2.pid"; do
+    "$runtime/rank-calculator-1.pid" "$runtime/rank-calculator-2.pid" \
+    "$runtime/events-logger-1.pid" "$runtime/events-logger-2.pid"; do
     if [[ -s "$pid_file" ]]; then
         echo "Найден $pid_file. Сначала выполните scripts/stop.sh." >&2
         exit 1
@@ -34,6 +35,7 @@ fi
 
 started_ports=()
 started_calculators=()
+started_loggers=()
 nginx_attempted=false
 
 cleanup() {
@@ -49,6 +51,9 @@ cleanup() {
         done
         for instance in "${started_calculators[@]}"; do
             stop_rank_calculator "$instance" || true
+        done
+        for instance in "${started_loggers[@]}"; do
+            stop_events_logger "$instance" || true
         done
     fi
     exit "$status"
@@ -86,9 +91,36 @@ wait_for_rank_calculator() {
     return 1
 }
 
+wait_for_events_logger() {
+    local instance=$1 pid=$2 attempt
+    for ((attempt = 0; attempt < 50; attempt++)); do
+        if ! is_events_logger "$pid"; then
+            echo "EventsLogger $instance завершился. См. $runtime/events-logger-$instance.log." >&2
+            return 1
+        fi
+        if grep -q 'Подписчик событий готов' "$runtime/events-logger-$instance.log"; then
+            return 0
+        fi
+        sleep 0.2
+    done
+    echo "EventsLogger $instance не готов за отведённое время." >&2
+    return 1
+}
+
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+cd -- "$root/EventsLogger"
+
+for instance in 1 2; do
+    dotnet "$events_application" > "$runtime/events-logger-$instance.log" 2>&1 &
+    pid=$!
+    started_loggers+=("$instance")
+    printf '%s\n' "$pid" > "$runtime/events-logger-$instance.pid"
+    sleep 0.1
+    wait_for_events_logger "$instance" "$pid"
+done
+
 cd -- "$root/RankCalculator"
 
 for instance in 1 2; do

@@ -4,7 +4,7 @@ namespace Valuator;
 
 public class Program
 {
-    public static void Main(string[] args)
+    public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
 
@@ -13,6 +13,9 @@ public class Program
         builder.Services.AddSingleton<IConnectionMultiplexer>(services =>
             ConnectionMultiplexer.Connect(
                 services.GetRequiredService<IConfiguration>().GetConnectionString("Redis") ?? "localhost:6379"));
+
+        await using var rankPublisher = await RankPublisher.CreateAsync(builder.Configuration);
+        builder.Services.AddSingleton(rankPublisher);
 
         var app = builder.Build();
 
@@ -29,6 +32,6 @@ public class Program
 
         app.MapRazorPages();
 
-        app.Run();
+        await app.RunAsync();
     }
 }

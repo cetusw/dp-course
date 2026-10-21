@@ -10,7 +10,8 @@ for command in dotnet nginx curl; do
     fi
 done
 
-for pid_file in "$runtime/nginx.pid" "$runtime/valuator-5001.pid" "$runtime/valuator-5002.pid"; do
+for pid_file in "$runtime/nginx.pid" "$runtime/valuator-5001.pid" "$runtime/valuator-5002.pid" \
+    "$runtime/rank-calculator-1.pid" "$runtime/rank-calculator-2.pid"; do
     if [[ -s "$pid_file" ]]; then
         echo "Найден $pid_file. Сначала выполните scripts/stop.sh." >&2
         exit 1
@@ -25,13 +26,18 @@ for port in 5001 5002 8080; do
 done
 
 mkdir -p -- "$runtime"
-dotnet build "$root/Valuator/Valuator.csproj" -c Release
+dotnet build "$root/ds-2024.sln" -c Release
+if ! (cd -- "$root/RankCalculator" && dotnet "$rank_application" --check-dependencies); then
+    echo "Не удалось подключиться к Redis или RabbitMQ. Проверьте зависимости и ConnectionStrings." >&2
+    exit 1
+fi
 
 started_ports=()
+started_calculators=()
 nginx_attempted=false
 
 cleanup() {
-    local status=$? port
+    local status=$? port instance
     trap - EXIT
     if ((status != 0)); then
         echo "Запуск не удался. Проверьте логи в $runtime." >&2
@@ -40,6 +46,9 @@ cleanup() {
         fi
         for port in "${started_ports[@]}"; do
             stop_valuator "$port" || true
+        done
+        for instance in "${started_calculators[@]}"; do
+            stop_rank_calculator "$instance" || true
         done
     fi
     exit "$status"
@@ -61,9 +70,36 @@ wait_for_http() {
     return 1
 }
 
+wait_for_rank_calculator() {
+    local instance=$1 pid=$2 attempt
+    for ((attempt = 0; attempt < 50; attempt++)); do
+        if ! is_rank_calculator "$pid"; then
+            echo "RankCalculator $instance завершился. См. $runtime/rank-calculator-$instance.log." >&2
+            return 1
+        fi
+        if grep -q 'Потребитель очереди' "$runtime/rank-calculator-$instance.log"; then
+            return 0
+        fi
+        sleep 0.2
+    done
+    echo "RankCalculator $instance не готов за отведённое время." >&2
+    return 1
+}
+
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+cd -- "$root/RankCalculator"
+
+for instance in 1 2; do
+    dotnet "$rank_application" > "$runtime/rank-calculator-$instance.log" 2>&1 &
+    pid=$!
+    started_calculators+=("$instance")
+    printf '%s\n' "$pid" > "$runtime/rank-calculator-$instance.pid"
+    sleep 0.1
+    wait_for_rank_calculator "$instance" "$pid"
+done
+
 cd -- "$root/Valuator"
 
 for port in 5001 5002; do

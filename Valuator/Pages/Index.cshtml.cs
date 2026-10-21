@@ -9,10 +9,12 @@ namespace Valuator.Pages;
 public class IndexModel : PageModel
 {
     private readonly IDatabase _database;
+    private readonly RankPublisher _rankPublisher;
 
-    public IndexModel(IConnectionMultiplexer connection)
+    public IndexModel(IConnectionMultiplexer connection, RankPublisher rankPublisher)
     {
         _database = connection.GetDatabase();
+        _rankPublisher = rankPublisher;
     }
 
     [BindProperty]
@@ -29,35 +31,12 @@ public class IndexModel : PageModel
         var id = Guid.NewGuid().ToString();
         await _database.StringSetAsync($"TEXT-{id}", Text);
 
-        double rank = CalculateRank(Text);
-        await _database.StringSetAsync($"RANK-{id}", rank.ToString(CultureInfo.InvariantCulture));
-
         bool isNewText = await _database.SetAddAsync("PROCESSED-TEXTS", Text);
         double similarity = isNewText ? 0 : 1;
         await _database.StringSetAsync($"SIMILARITY-{id}", similarity.ToString(CultureInfo.InvariantCulture));
 
+        await _rankPublisher.PublishAsync(id, HttpContext.RequestAborted);
+
         return RedirectToPage("/Summary", new { id });
-    }
-
-    private static double CalculateRank(string text)
-    {
-        int totalCount = 0;
-        int nonAlphabeticCount = 0;
-        foreach (var rune in text.EnumerateRunes())
-        {
-            totalCount++;
-            if (!IsAlphabetic(rune.Value))
-            {
-                nonAlphabeticCount++;
-            }
-        }
-
-        return (double)nonAlphabeticCount / totalCount;
-    }
-
-    private static bool IsAlphabetic(int symbol)
-    {
-        return symbol is >= 'a' and <= 'z' or >= 'A' and <= 'Z'
-            or >= 'а' and <= 'я' or >= 'А' and <= 'Я' or 'ё' or 'Ё';
     }
 }

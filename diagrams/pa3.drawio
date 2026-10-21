@@ -1,0 +1,122 @@
+<mxfile host="Electron">
+  <diagram id="pa3" name="PA3 — C4 Container">
+    <mxGraphModel dx="1988" dy="1201" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1250" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="system" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#777777;dashed=1;verticalAlign=top;align=left;spacing=15;fontSize=20;" value="Valuator — система оценки текстов [Software System]" vertex="1">
+          <mxGeometry height="1000" width="1700" x="40" y="180" as="geometry" />
+        </mxCell>
+        <mxCell id="browser" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1168bd;fontColor=#ffffff;strokeColor=#0b4884;fontSize=16;spacing=12;" value="&lt;b&gt;Пользователь / Browser&lt;/b&gt;&lt;br&gt;[Person · веб-браузер]&lt;br&gt;&lt;br&gt;Отправляет текст и просматривает результаты" vertex="1">
+          <mxGeometry height="130" width="300" x="690" y="10" as="geometry" />
+        </mxCell>
+        <mxCell id="nginx" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1168bd;fontColor=#ffffff;strokeColor=#0b4884;fontSize=16;spacing=12;" value="&lt;b&gt;Nginx&lt;/b&gt;&lt;br&gt;[Container · Nginx]&lt;br&gt;&lt;br&gt;Reverse proxy :8080&lt;br&gt;Round Robin" vertex="1">
+          <mxGeometry height="130" width="300" x="690" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="web1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1168bd;fontColor=#ffffff;strokeColor=#0b4884;fontSize=16;spacing=12;" value="&lt;b&gt;Valuator — экземпляр 1&lt;/b&gt;&lt;br&gt;[Container · ASP.NET Core 8 / Razor Pages]&lt;br&gt;&lt;br&gt;HTTP :5001&lt;br&gt;Текст, similarity и отправка задания" vertex="1">
+          <mxGeometry height="130" width="300" x="350" y="470" as="geometry" />
+        </mxCell>
+        <mxCell id="web2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1168bd;fontColor=#ffffff;strokeColor=#0b4884;fontSize=16;spacing=12;" value="&lt;b&gt;Valuator — экземпляр 2&lt;/b&gt;&lt;br&gt;[Container · ASP.NET Core 8 / Razor Pages]&lt;br&gt;&lt;br&gt;HTTP :5002&lt;br&gt;Текст, similarity и отправка задания" vertex="1">
+          <mxGeometry height="130" width="300" x="950" y="470" as="geometry" />
+        </mxCell>
+        <mxCell id="rabbit" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1168bd;fontColor=#ffffff;strokeColor=#0b4884;fontSize=16;spacing=12;" value="&lt;b&gt;RabbitMQ&lt;/b&gt;&lt;br&gt;[Container · RabbitMQ / AMQP]&lt;br&gt;&lt;br&gt;Durable direct exchange и общая очередь&lt;br&gt;valuator.processing.rank" vertex="1">
+          <mxGeometry height="150" width="300" x="690" y="710" as="geometry" />
+        </mxCell>
+        <mxCell id="rank1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1168bd;fontColor=#ffffff;strokeColor=#0b4884;fontSize=16;spacing=12;" value="&lt;b&gt;RankCalculator — экземпляр 1&lt;/b&gt;&lt;br&gt;[Container · .NET 8 Console / Generic Host]&lt;br&gt;&lt;br&gt;Вычисляет rank&lt;br&gt;Manual ack, prefetch = 1" vertex="1">
+          <mxGeometry height="130" width="300" x="350" y="970" as="geometry" />
+        </mxCell>
+        <mxCell id="rank2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1168bd;fontColor=#ffffff;strokeColor=#0b4884;fontSize=16;spacing=12;" value="&lt;b&gt;RankCalculator — экземпляр 2&lt;/b&gt;&lt;br&gt;[Container · .NET 8 Console / Generic Host]&lt;br&gt;&lt;br&gt;Вычисляет rank&lt;br&gt;Manual ack, prefetch = 1" vertex="1">
+          <mxGeometry height="130" width="300" x="950" y="970" as="geometry" />
+        </mxCell>
+        <mxCell id="redis" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1168bd;fontColor=#ffffff;strokeColor=#0b4884;fontSize=16;spacing=12;" value="&lt;b&gt;Redis&lt;/b&gt;&lt;br&gt;[Container · Redis]&lt;br&gt;&lt;br&gt;Общее хранилище :6379&lt;br&gt;TEXT-{id}, RANK-{id},&lt;br&gt;SIMILARITY-{id},&lt;br&gt;PROCESSED-TEXTS" vertex="1">
+          <mxGeometry height="180" width="280" x="1410" y="690" as="geometry" />
+        </mxCell>
+        <mxCell id="browser-http" edge="1" parent="1" source="browser" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#444444;fontColor=#333333;fontSize=14;labelBackgroundColor=#ffffff;" target="nginx" value="Отправка формы / Summary&lt;br&gt;HTTP :8080">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="balance1" edge="1" parent="1" source="nginx" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#444444;fontColor=#333333;fontSize=14;labelBackgroundColor=#ffffff;" target="web1" value="Балансировка&lt;br&gt;HTTP :5001">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="840" y="410" />
+              <mxPoint x="500" y="410" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="balance2" edge="1" parent="1" source="nginx" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#444444;fontColor=#333333;fontSize=14;labelBackgroundColor=#ffffff;" target="web2" value="Балансировка&lt;br&gt;HTTP :5002">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="840" y="410" />
+              <mxPoint x="1100" y="410" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="publish1" edge="1" parent="1" source="web1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#444444;fontColor=#333333;fontSize=14;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;entryX=0.25;entryY=0;" target="rabbit" value="Публикация GUID&lt;br&gt;AMQP / persistent">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="500" y="650" />
+              <mxPoint x="760" y="650" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="publish2" edge="1" parent="1" source="web2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#444444;fontColor=#333333;fontSize=14;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;entryX=0.75;entryY=0;" target="rabbit" value="Публикация GUID&lt;br&gt;AMQP / persistent">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1100" y="650" />
+              <mxPoint x="920" y="650" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="delivery1" edge="1" parent="1" source="rabbit" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#444444;fontColor=#333333;fontSize=14;labelBackgroundColor=#ffffff;exitX=0.25;exitY=1;entryX=0.5;entryY=0;" target="rank1" value="GUID одному из конкурирующих&lt;br&gt;потребителей · AMQP / ack">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="760" y="920" />
+              <mxPoint x="500" y="920" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="delivery2" edge="1" parent="1" source="rabbit" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#444444;fontColor=#333333;fontSize=14;labelBackgroundColor=#ffffff;exitX=0.75;exitY=1;entryX=0.5;entryY=0;" target="rank2" value="GUID одному из конкурирующих&lt;br&gt;потребителей · AMQP / ack">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="920" y="920" />
+              <mxPoint x="1100" y="920" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="web1-redis" edge="1" parent="1" source="web1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#444444;fontColor=#333333;fontSize=14;labelBackgroundColor=#ffffff;exitX=1;exitY=0.45;entryX=0.15;entryY=0;" target="redis" value="Сохранение текста и similarity;&lt;br&gt;чтение результатов · RESP">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="290" as="offset" />
+            <Array as="points">
+              <mxPoint x="680" y="530" />
+              <mxPoint x="680" y="620" />
+              <mxPoint x="1450" y="620" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="web2-redis" edge="1" parent="1" source="web2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#444444;fontColor=#333333;fontSize=14;labelBackgroundColor=#ffffff;exitX=1;exitY=0.45;entryX=0.7;entryY=0;" target="redis" value="Сохранение текста и similarity;&lt;br&gt;чтение результатов · RESP">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1600" y="530" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="rank1-redis" edge="1" parent="1" source="rank1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#444444;fontColor=#333333;fontSize=14;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;entryX=0.8;entryY=1;" target="redis" value="Чтение текста; запись rank · RESP">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="500" y="1140" />
+              <mxPoint x="1630" y="1140" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="rank2-redis" edge="1" parent="1" source="rank2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#444444;fontColor=#333333;fontSize=14;labelBackgroundColor=#ffffff;exitX=1;exitY=0.5;entryX=0;entryY=0.7;" target="redis" value="Чтение текста;&lt;br&gt;запись rank · RESP">
+          <mxGeometry relative="1" x="0.0026" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1340" y="1030" />
+              <mxPoint x="1340" y="810" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

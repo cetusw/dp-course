@@ -5,6 +5,7 @@ root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 runtime="$root/.runtime"
 config="$root/nginx/conf/nginx.conf"
 application="$root/Valuator/bin/Release/net8.0/Valuator.dll"
+rank_application="$root/RankCalculator/bin/Release/net8.0/RankCalculator.dll"
 
 is_valuator() {
     local pid=$1 port=$2
@@ -13,6 +14,14 @@ is_valuator() {
     mapfile -d '' -t arguments < "/proc/$pid/cmdline"
     [[ ${#arguments[@]} -eq 4 && "${arguments[1]}" == "$application" &&
         "${arguments[2]}" == --urls && "${arguments[3]}" == "http://127.0.0.1:$port" ]]
+}
+
+is_rank_calculator() {
+    local pid=$1
+    local -a arguments=()
+    [[ "$pid" =~ ^[1-9][0-9]*$ && -r "/proc/$pid/cmdline" ]] || return 1
+    mapfile -d '' -t arguments < "/proc/$pid/cmdline"
+    [[ ${#arguments[@]} -eq 2 && "${arguments[1]}" == "$rank_application" ]]
 }
 
 is_nginx() {
@@ -46,6 +55,18 @@ stop_valuator() {
     rm -f -- "$pid_file"
 }
 
+stop_rank_calculator() {
+    local instance=$1 pid
+    local pid_file="$runtime/rank-calculator-$instance.pid"
+    [[ -f "$pid_file" ]] || return 0
+    pid=$(cat -- "$pid_file")
+    if is_rank_calculator "$pid"; then
+        kill -TERM "$pid" || return 1
+        wait_for_exit rank_calculator "$pid" || return 1
+    fi
+    rm -f -- "$pid_file"
+}
+
 stop_nginx() {
     local pid
     [[ -f "$runtime/nginx.pid" ]] || return 0
@@ -62,6 +83,8 @@ stop_all() {
     stop_nginx || status=1
     stop_valuator 5001 || status=1
     stop_valuator 5002 || status=1
+    stop_rank_calculator 1 || status=1
+    stop_rank_calculator 2 || status=1
     return "$status"
 }
 

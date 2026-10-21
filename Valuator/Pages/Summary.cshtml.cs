@@ -14,7 +14,7 @@ public class SummaryModel : PageModel
         _database = connection.GetDatabase();
     }
 
-    public double Rank { get; private set; }
+    public double? Rank { get; private set; }
     public double Similarity { get; private set; }
 
     public async Task<IActionResult> OnGetAsync(string? id)
@@ -24,14 +24,15 @@ public class SummaryModel : PageModel
             return BadRequest();
         }
 
-        RedisValue rank = await _database.StringGetAsync($"RANK-{id}");
+        bool textExists = await _database.KeyExistsAsync($"TEXT-{id}");
         RedisValue similarity = await _database.StringGetAsync($"SIMILARITY-{id}");
-        if (rank.IsNull || similarity.IsNull)
+        if (!textExists || similarity.IsNull)
         {
             return NotFound();
         }
 
-        Rank = double.Parse(rank.ToString(), CultureInfo.InvariantCulture);
+        RedisValue rank = await _database.StringGetAsync($"RANK-{id}");
+        Rank = rank.IsNull ? null : double.Parse(rank.ToString(), CultureInfo.InvariantCulture);
         Similarity = double.Parse(similarity.ToString(), CultureInfo.InvariantCulture);
         return Page();
     }
